@@ -33,7 +33,7 @@ totalCredits vcs = Credit (sum [m | (Credit m) <- vcs])
 
 isBalanced :: Transaction -> Bool
 isBalanced txn = let vcs = valueChanges txn in
-    balance vcs == Balanced
+    balance vcs == ZeroBalance
 
 isValid :: Transaction -> Bool
 isValid txn = let vcs = valueChanges txn in
@@ -42,7 +42,7 @@ isValid txn = let vcs = valueChanges txn in
     isBalanced txn
 
 data BalanceResult =
-    CreditBalance(Monetary) | DebitBalance(Monetary) | Balanced
+    CreditBalance(Monetary) | DebitBalance(Monetary) | ZeroBalance
     deriving (Eq, Show)
 
 balance :: [ValueChange] -> BalanceResult
@@ -51,7 +51,7 @@ balance vcs = balanceDbCr (totalDebits vcs) (totalCredits vcs)
 balanceDbCr :: ValueChange -> ValueChange -> BalanceResult
 balanceDbCr (Debit db) (Credit cr) = case db `compare` cr of
     GT -> DebitBalance(db - cr)
-    EQ -> Balanced
+    EQ -> ZeroBalance
     LT -> CreditBalance(cr - db)
 
 accountBalance :: Account -> Book -> BalanceResult
@@ -80,5 +80,16 @@ type Book = [Transaction]
 
 bookIsValid :: Book -> Bool
 bookIsValid = all isValid
+
+data AccountSign = DebitIncreases | CreditIncreases
+
+displayBalance :: BalanceResult -> AccountSign -> Monetary
+displayBalance b sign =
+    case (b, sign) of
+        ((DebitBalance m), DebitIncreases) -> m
+        ((DebitBalance m), CreditIncreases) -> -m
+        ((CreditBalance m), DebitIncreases) -> -m
+        ((CreditBalance m), CreditIncreases) -> m
+        (ZeroBalance, _) -> 0
 
 
