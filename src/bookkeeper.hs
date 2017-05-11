@@ -2,6 +2,9 @@ type Monetary = Int
 
 type Account = Int
 
+type Security = String
+type Currency = String
+
 data ValueChange = 
     Debit(Monetary) | Credit(Monetary)
     deriving (Show)
