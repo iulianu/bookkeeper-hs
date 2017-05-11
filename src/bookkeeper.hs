@@ -64,7 +64,7 @@ accountBalance acc txns = let vcs = accountValueChanges acc txns in
 accountValueChanges :: Account -> Book -> [ValueChange]
 accountValueChanges acc txns = 
     let splits = concat txns
-        accSplits = filter (\s -> account s == acc) splits
+        accSplits = filter ((== acc) . account) splits
     in 
         fmap valueChange accSplits
 
