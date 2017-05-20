@@ -1,13 +1,14 @@
 type Monetary = Int
+type Quantity = Int
 
 type Account = Int
 
-type Security = String
-type Currency = String
+--type Security = String
+--type Currency = String
 
 data ValueChange = 
-    Debit(Monetary) | Credit(Monetary)
-    deriving (Show)
+    Debit(Monetary) | Credit(Monetary) | Zero
+    deriving (Eq, Show)
 
 isDebit :: ValueChange -> Bool
 isDebit (Debit _) = True
@@ -21,6 +22,8 @@ isCredit _ = False
 data Split = Split {
     account :: Account,
     valueChange :: ValueChange
+--    quantity :: Quantity
+--    currency :: Currency
 } deriving (Show)
 
 type Transaction = [Split]
@@ -28,15 +31,14 @@ type Transaction = [Split]
 valueChanges :: Transaction -> [ValueChange]
 valueChanges = fmap valueChange
 
-totalDebits :: [ValueChange] -> ValueChange
-totalDebits vcs = Debit (sum [m | (Debit m) <- vcs])
-
-totalCredits :: [ValueChange] -> ValueChange
-totalCredits vcs = Credit (sum [m | (Credit m) <- vcs])
+--totalDebits :: [ValueChange] -> ValueChange
+--totalDebits vcs = Debit (sum [m | (Debit m) <- vcs])
+--
+--totalCredits :: [ValueChange] -> ValueChange
+--totalCredits vcs = Credit (sum [m | (Credit m) <- vcs])
 
 isBalanced :: Transaction -> Bool
-isBalanced txn = let vcs = valueChanges txn in
-    balance vcs == ZeroBalance
+isBalanced = (Zero ==) . mconcat . valueChanges
 
 isValid :: Transaction -> Bool
 isValid txn = let vcs = valueChanges txn in
@@ -44,22 +46,25 @@ isValid txn = let vcs = valueChanges txn in
     (any isCredit vcs) && 
     isBalanced txn
 
-data BalanceResult =
-    CreditBalance(Monetary) | DebitBalance(Monetary) | ZeroBalance
-    deriving (Eq, Show)
+instance Monoid ValueChange where
+    mempty = Zero
+    mappend = vcappend 
+    -- plus default implementation of mconcat
 
-balance :: [ValueChange] -> BalanceResult
-balance vcs = balanceDbCr (totalDebits vcs) (totalCredits vcs)
+vcappend :: ValueChange -> ValueChange -> ValueChange
+vcappend Zero b = b
+vcappend a Zero = a
+vcappend (Debit d1) (Debit d2) = Debit(d1+d2)
+vcappend (Credit c1) (Credit c2) = Credit(c1+c2)
+vcappend (Credit c) (Debit d) = vcappend (Debit d) (Credit c)
+vcappend (Debit db) (Credit cr) = case db `compare` cr of
+    GT -> Debit(db - cr)
+    EQ -> Zero
+    LT -> Credit(cr - db)
 
-balanceDbCr :: ValueChange -> ValueChange -> BalanceResult
-balanceDbCr (Debit db) (Credit cr) = case db `compare` cr of
-    GT -> DebitBalance(db - cr)
-    EQ -> ZeroBalance
-    LT -> CreditBalance(cr - db)
-
-accountBalance :: Account -> Book -> BalanceResult
-accountBalance acc txns = let vcs = accountValueChanges acc txns in
-    balanceDbCr (totalDebits vcs) (totalCredits vcs)
+accountBalance :: Account -> Book -> ValueChange
+accountBalance acc txns = 
+    mconcat (accountValueChanges acc txns)
 
 accountValueChanges :: Account -> Book -> [ValueChange]
 accountValueChanges acc txns = 
@@ -86,13 +91,13 @@ bookIsValid = all isValid
 
 data AccountSign = DebitIncreases | CreditIncreases
 
-displayBalance :: BalanceResult -> AccountSign -> Monetary
+displayBalance :: ValueChange -> AccountSign -> Monetary
 displayBalance b sign =
     case (b, sign) of
-        ((DebitBalance m), DebitIncreases) -> m
-        ((DebitBalance m), CreditIncreases) -> -m
-        ((CreditBalance m), DebitIncreases) -> -m
-        ((CreditBalance m), CreditIncreases) -> m
-        (ZeroBalance, _) -> 0
+        ((Debit m), DebitIncreases) -> m
+        ((Debit m), CreditIncreases) -> -m
+        ((Credit m), DebitIncreases) -> -m
+        ((Credit m), CreditIncreases) -> m
+        (Zero, _) -> 0
 
 
